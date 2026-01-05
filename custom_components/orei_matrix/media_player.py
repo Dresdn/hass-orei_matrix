@@ -8,6 +8,7 @@ import logging
 
 _LOGGER = logging.getLogger(__name__)
 
+
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up Orei HDMI Matrix outputs as media players."""
     data = hass.data[DOMAIN][entry.entry_id]
@@ -16,7 +17,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
     config = data["config"]
     zones = config.get("zones", [])
     entities = [
-        OreiMatrixOutputMediaPlayer(client, coordinator, config, zone_name, idx, entry.entry_id)
+        OreiMatrixOutputMediaPlayer(
+            client, coordinator, config, zone_name, idx, entry.entry_id
+        )
         for idx, zone_name in enumerate(zones, start=1)
     ]
 
@@ -26,9 +29,11 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class OreiMatrixOutputMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
     """Represents one HDMI matrix output as a media player source selector."""
 
-    _attr_supported_features = MediaPlayerEntityFeature.SELECT_SOURCE \
-                                | MediaPlayerEntityFeature.TURN_OFF \
-                                | MediaPlayerEntityFeature.TURN_ON
+    _attr_supported_features = (
+        MediaPlayerEntityFeature.SELECT_SOURCE
+        | MediaPlayerEntityFeature.TURN_OFF
+        | MediaPlayerEntityFeature.TURN_ON
+    )
 
     def __init__(self, client, coordinator, config, name, output_id, entry_id):
         super().__init__(coordinator)
@@ -85,7 +90,7 @@ class OreiMatrixOutputMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
             "model": model,
             "configuration_url": f"http://{self._config.get('host')}",
         }
-        
+
     @callback
     def _handle_coordinator_update(self):
         if not self.available:

@@ -3,6 +3,7 @@ import logging
 
 _LOGGER = logging.getLogger(__name__)
 
+
 class OreiMatrixClient:
     """Async client for controlling Orei HDMI Matrix via Telnet."""
 
@@ -68,12 +69,12 @@ class OreiMatrixClient:
                         if not data:
                             break
                         chunks.extend(data)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass
 
                 if not chunks:
                     _LOGGER.warning("No response received for command: %s", cmd)
-                    return ""
+                    return []
 
                 # --- Clean and parse ---
                 filtered = bytes(b for b in chunks if b < 0x80)
@@ -87,14 +88,18 @@ class OreiMatrixClient:
                 cleaned = []
                 for line in lines:
                     if (
-                        line.startswith(cmd.split()[0]) or
-                        line.startswith("********") or
-                        line.startswith("FW Version") or
-                        line == ">" or
-                        "Welcome" in line
+                        line.startswith(
+                            (
+                                cmd.split()[0],
+                                "********",
+                                "FW Version",
+                                ">",
+                            )
+                        )
+                        or "Welcome" in line
                     ):
                         continue
-                    cleaned.append(line.strip('>'))
+                    cleaned.append(line.strip(">"))
 
                 return cleaned
 
@@ -102,9 +107,9 @@ class OreiMatrixClient:
                 _LOGGER.warning("Telnet command failed (%s), reconnecting...", e)
                 await self.disconnect()
                 raise
-    
+
     async def _send_command(self, cmd: str) -> str:
-        cleaned = await self._send_command_multiple(cmd);
+        cleaned = await self._send_command_multiple(cmd)
         response = cleaned[-1] if cleaned else ""
         _LOGGER.debug("Cleaned response: %s", response)
         return response
@@ -148,7 +153,7 @@ class OreiMatrixClient:
 
     async def get_output_sources(self):
         """Get the current input assigned to a given output."""
-        results = await self._send_command_multiple(f"r av out 0!")
+        results = await self._send_command_multiple("r av out 0!")
         response = {}
 
         for res in results:
@@ -172,11 +177,11 @@ class OreiMatrixClient:
     async def get_in_link(self, input_id: int):
         """Get the input state."""
         res = await self._send_command(f"r link in {input_id}!")
-        return not "disconnect" in res.lower()
+        return "disconnect" not in res.lower()
 
     async def get_in_links(self):
         """Get the input state."""
-        results = await self._send_command_multiple(f"r link in 0!")
+        results = await self._send_command_multiple("r link in 0!")
         response = {}
 
         for res in results:
@@ -188,7 +193,7 @@ class OreiMatrixClient:
                 for i, token in enumerate(parts):
                     if token in ("input", "in") and i + 1 < len(parts):
                         input_id = int(parts[i + 1])
-                response[input_id] = not "disconnect" in res
+                response[input_id] = "disconnect" not in res
             except ValueError:
                 _LOGGER.warning("Could not parse integers from response: %s", res)
                 return None
@@ -197,11 +202,11 @@ class OreiMatrixClient:
     async def get_out_link(self, output_id: int):
         """Get the output state."""
         res = await self._send_command(f"r link out {output_id}!")
-        return not "disconnect" in res.lower()
+        return "disconnect" not in res.lower()
 
     async def get_out_links(self):
         """Get the input state."""
-        results = await self._send_command_multiple(f"r link out 0!")
+        results = await self._send_command_multiple("r link out 0!")
         response = {}
 
         for res in results:
@@ -213,7 +218,7 @@ class OreiMatrixClient:
                 for i, token in enumerate(parts):
                     if token in ("output", "out") and i + 1 < len(parts):
                         output_id = int(parts[i + 1])
-                response[output_id] = not "disconnect" in res
+                response[output_id] = "disconnect" not in res
             except ValueError:
                 _LOGGER.warning("Could not parse integers from response: %s", res)
                 return None

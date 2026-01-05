@@ -17,18 +17,18 @@ class OreiMatrixConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data=user_input,
             )
 
-        data_schema = vol.Schema({
-            vol.Required(CONF_HOST): str,
-            vol.Optional(CONF_PORT, default=23): int,
-            vol.Optional(
-                CONF_SOURCES,
-                default=[]
-            ): selector({"text": {"multiple": True}}),
-            vol.Optional(
-                CONF_ZONES,
-                default=[]
-            ): selector({"text": {"multiple": True}}),
-        })
+        data_schema = vol.Schema(
+            {
+                vol.Required(CONF_HOST): str,
+                vol.Optional(CONF_PORT, default=23): int,
+                vol.Optional(CONF_SOURCES, default=[]): selector(
+                    {"text": {"multiple": True}}
+                ),
+                vol.Optional(CONF_ZONES, default=[]): selector(
+                    {"text": {"multiple": True}}
+                ),
+            }
+        )
 
         return self.async_show_form(
             step_id="user",

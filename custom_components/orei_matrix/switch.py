@@ -5,13 +5,16 @@ import logging
 
 _LOGGER = logging.getLogger(__name__)
 
+
 async def async_setup_entry(hass, entry, async_add_entities):
     data = hass.data[DOMAIN][entry.entry_id]
     client = data["client"]
     coordinator = data["coordinator"]
     config = data["config"]
 
-    async_add_entities([OreiMatrixPowerSwitch(client, coordinator, config, entry.entry_id)])
+    async_add_entities(
+        [OreiMatrixPowerSwitch(client, coordinator, config, entry.entry_id)]
+    )
 
 
 class OreiMatrixPowerSwitch(CoordinatorEntity, SwitchEntity):

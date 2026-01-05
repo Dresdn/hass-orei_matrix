@@ -1,10 +1,13 @@
+import logging
+
 from homeassistant.components.button import ButtonEntity
 from homeassistant.core import callback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
 from .const import DOMAIN
-import logging
 
 _LOGGER = logging.getLogger(__name__)
+
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up Orei HDMI Matrix outputs as buttons."""
@@ -14,7 +17,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
     config = data["config"]
     zones = config.get("zones", [])
     entities = [
-        OreiMatrixOutputButton(client, coordinator, config, f"{zone_name} next source", idx, entry.entry_id)
+        OreiMatrixOutputButton(
+            client, coordinator, config, f"{zone_name} next source", idx, entry.entry_id
+        )
         for idx, zone_name in enumerate(zones, start=1)
     ]
 
@@ -48,7 +53,7 @@ class OreiMatrixOutputButton(CoordinatorEntity, ButtonEntity):
             "model": model,
             "configuration_url": f"http://{self._config.get('host')}",
         }
-        
+
     @callback
     def _handle_coordinator_update(self):
         outputs = self.coordinator.data.get("outputs")
@@ -56,15 +61,19 @@ class OreiMatrixOutputButton(CoordinatorEntity, ButtonEntity):
             return
         self._current = outputs[self._output_id]
         self.async_write_ha_state()
-    
+
     async def async_press(self) -> None:
         """Handle the button press."""
-        if self._current == None:
-            _LOGGER.warning("Current input is unknown; cannot change source for %s.", self.name)
+        if self._current is None:
+            _LOGGER.warning(
+                "Current input is unknown; cannot change source for %s.", self.name
+            )
             return
-        
+
         input_id = (self._current % len(self._sources)) + 1
         source = self._sources[input_id - 1]
         await self._client.set_output_source(input_id, self._output_id)
+        await self.coordinator.async_request_refresh()
+        _LOGGER.info("Switched %s to %s", self.name, source)
         await self.coordinator.async_request_refresh()
         _LOGGER.info("Switched %s to %s", self.name, source)

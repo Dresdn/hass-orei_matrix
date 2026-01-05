@@ -10,6 +10,8 @@ from .coordinator import OreiMatrixClient
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = ["media_player", "switch", "button"]
+_LOGGER.warning("OREI MATRIX DEV BUILD LOADED")
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     client = OreiMatrixClient(entry.data["host"], entry.data.get("port", 23))
@@ -19,14 +21,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         try:
             power = await client.get_power()
             outputs = await client.get_output_sources()
-            return {
-                "power": power,
-                "type": type_str,
-                "outputs": outputs
-            }
+            return {"power": power, "type": type_str, "outputs": outputs}
         except Exception as err:
             _LOGGER.error("Update failed: %s", err)
-            raise UpdateFailed(err)
+            raise UpdateFailed(err) from err
 
     coordinator = DataUpdateCoordinator(
         hass,
@@ -61,6 +59,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     )
 
     return True
+
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
