@@ -1,0 +1,104 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Install Dependencies (UV Sync)",
+      "type": "shell",
+      "command": "uv",
+      "args": ["sync"],
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      }
+    },
+    {
+      "label": "Lint with Ruff",
+      "type": "shell",
+      "command": "uv",
+      "args": ["run", "ruff", "check", "custom_components/orei_matrix"],
+      "problemMatcher": [],
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      }
+    },
+    {
+      "label": "Fix with Ruff",
+      "type": "shell",
+      "command": "uv",
+      "args": ["run", "ruff", "check", "--fix", "custom_components/orei_matrix"],
+      "problemMatcher": [],
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      }
+    },
+    {
+      "label": "Format with Ruff",
+      "type": "shell",
+      "command": "uv",
+      "args": ["run", "ruff", "format", "custom_components/orei_matrix"],
+      "problemMatcher": [],
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      }
+    },
+    {
+      "label": "Type Check with mypy",
+      "type": "shell",
+      "command": "uv",
+      "args": ["run", "mypy", "custom_components/orei_matrix"],
+      "problemMatcher": [],
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      }
+    },
+    {
+      "label": "Run Tests",
+      "type": "shell",
+      "command": "uv",
+      "args": ["run", "pytest", "-v"],
+      "problemMatcher": [],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Run Tests with Coverage",
+      "type": "shell",
+      "command": "uv",
+      "args": ["run", "pytest", "--cov=custom_components/orei_matrix", "--cov-report=html"],
+      "problemMatcher": [],
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      }
+    },
+    {
+      "label": "Quality Checks (Lint + Type Check)",
+      "type": "shell",
+      "command": "make",
+      "args": ["quality"],
+      "problemMatcher": [],
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      }
+    },
+    {
+      "label": "Clean Cache Files",
+      "type": "shell",
+      "command": "make",
+      "args": ["clean"],
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      }
+    }
+  ]
+}
