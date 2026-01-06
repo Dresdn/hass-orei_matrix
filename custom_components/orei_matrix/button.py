@@ -1,7 +1,6 @@
 import logging
 
 from homeassistant.components.button import ButtonEntity
-from homeassistant.core import callback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_OUTPUTS, CONF_ZONES, DOMAIN
@@ -97,61 +96,3 @@ class OreiMatrixOutputPowerButton(CoordinatorEntity, ButtonEntity):
             )
         else:
             _LOGGER.info("Powered off output %d", self._output_id)
-
-
-class OreiMatrixOutputButton(CoordinatorEntity, ButtonEntity):
-    """Represents one HDMI matrix output as a button to cycle sources."""
-
-    def __init__(self, client, coordinator, config, zone_name, output_id, entry_id):
-        super().__init__(coordinator)
-        sources = config.get("sources", [])
-        self._client = client
-        self._config = config
-        self._output_id = output_id
-        self._sources = sources
-        self._current = None
-        self._entry_id = entry_id
-
-        # Use entry_id for stable unique ID
-        self._attr_unique_id = f"{entry_id}_output_{output_id}_next"
-
-        # Set friendly name
-        self._attr_name = f"{zone_name} Next Source"
-        self._attr_has_entity_name = True
-
-    @property
-    def device_info(self):
-        """Device info for grouping and model-based naming."""
-        model = self.coordinator.data.get("type", "Unknown")
-        name = f"Orei {model}" if model != "Unknown" else "Orei HDMI Matrix"
-        return {
-            "identifiers": {(DOMAIN, self._entry_id)},
-            "name": name,
-            "manufacturer": "Orei",
-            "model": model,
-            "configuration_url": f"http://{self._config.get('host')}",
-        }
-
-    @callback
-    def _handle_coordinator_update(self):
-        outputs = self.coordinator.data.get("outputs")
-        if not outputs:
-            return
-        self._current = outputs.get(self._output_id)
-        self.async_write_ha_state()
-
-    async def async_press(self) -> None:
-        """Handle the button press."""
-        if self._current is None:
-            _LOGGER.warning(
-                "Current input is unknown; cannot change source for %s.", self.name
-            )
-            return
-
-        input_id = (self._current % len(self._sources)) + 1
-        source = self._sources[input_id - 1]
-        await self._client.set_output_source(input_id, self._output_id)
-        await self.coordinator.async_request_refresh()
-        _LOGGER.info("Switched %s to %s", self.name, source)
-        await self.coordinator.async_request_refresh()
-        _LOGGER.info("Switched %s to %s", self.name, source)
