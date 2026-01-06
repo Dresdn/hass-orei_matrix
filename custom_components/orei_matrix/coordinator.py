@@ -20,23 +20,23 @@ class OreiMatrixClient:
 
     async def connect(self):
         """Establish a TCP connection to the matrix."""
-        try:
-            self._reader, self._writer = await asyncio.open_connection(
-                self._host, self._port
-            )
-            _LOGGER.debug("Connected to Orei Matrix at %s:%s", self._host, self._port)
-        except Exception as e:
-            _LOGGER.error("Failed to connect to Orei Matrix: %s", e)
-            raise
+        self._reader, self._writer = await asyncio.wait_for(
+            asyncio.open_connection(self._host, self._port),
+            timeout=5.0,
+        )
+        _LOGGER.debug("Connected to Orei Matrix at %s:%s", self._host, self._port)
 
     async def disconnect(self):
         """Close the connection."""
-        if self._writer:
-            try:
-                self._writer.close()
-                await self._writer.wait_closed()
-            except Exception:
-                pass
+        if not self._writer:
+            return
+
+        self._writer.close()
+        try:
+            await self._writer.wait_closed()
+        except Exception:
+            pass  # Best effort cleanup
+        finally:
             self._reader = None
             self._writer = None
             _LOGGER.debug("Disconnected from Orei Matrix")
@@ -53,60 +53,72 @@ class OreiMatrixClient:
     async def _send_command_multiple(self, cmd: str) -> list[str]:
         async with self._lock:
             await self._ensure_connected()
+            return await self._send_and_parse(cmd)
 
-            try:
-                _LOGGER.debug("Sending command: %s", cmd)
-                self._writer.write((cmd + "\r\n").encode("ascii"))
-                await self._writer.drain()
+    async def _send_and_parse(self, cmd: str) -> list[str]:
+        """Send command and parse response."""
+        try:
+            chunks = await self._send_and_read(cmd)
+        except Exception as e:
+            _LOGGER.warning("Telnet command failed (%s), reconnecting...", e)
+            await self.disconnect()
+            raise
 
-                # Read response until idle
-                chunks = bytearray()
-                try:
-                    while True:
-                        data = await asyncio.wait_for(
-                            self._reader.read(1024), timeout=0.3
-                        )
-                        if not data:
-                            break
-                        chunks.extend(data)
-                except TimeoutError:
-                    pass
+        if not chunks:
+            _LOGGER.warning("No response received for command: %s", cmd)
+            return []
 
-                if not chunks:
-                    _LOGGER.warning("No response received for command: %s", cmd)
-                    return []
+        return self._parse_response(cmd, chunks)
 
-                # --- Clean and parse ---
-                filtered = bytes(b for b in chunks if b < 0x80)
-                text = filtered.decode("ascii", errors="ignore").strip()
+    async def _send_and_read(self, cmd: str) -> bytearray:
+        """Send command and read raw response."""
+        if not self._writer or not self._reader:
+            raise RuntimeError("Not connected to matrix")
 
-                # Split into lines, remove empty and banner/prompt lines
-                lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
-                _LOGGER.debug("Parsed lines: %s", lines)
+        _LOGGER.debug("Sending command: %s", cmd)
+        self._writer.write((cmd + "\r\n").encode("ascii"))
+        await self._writer.drain()
 
-                # Remove echoed command and banner
-                cleaned = []
-                for line in lines:
-                    if (
-                        line.startswith(
-                            (
-                                cmd.split()[0],
-                                "********",
-                                "FW Version",
-                                ">",
-                            )
-                        )
-                        or "Welcome" in line
-                    ):
-                        continue
-                    cleaned.append(line.strip(">"))
+        # Read response until idle
+        chunks = bytearray()
+        try:
+            while True:
+                data = await asyncio.wait_for(self._reader.read(1024), timeout=0.3)
+                if not data:
+                    break
+                chunks.extend(data)
+        except TimeoutError:
+            pass
 
-                return cleaned
+        return chunks
 
-            except Exception as e:
-                _LOGGER.warning("Telnet command failed (%s), reconnecting...", e)
-                await self.disconnect()
-                raise
+    def _parse_response(self, cmd: str, chunks: bytearray) -> list[str]:
+        """Parse raw response bytes into cleaned lines."""
+        # --- Clean and parse ---
+        filtered = bytes(b for b in chunks if b < 0x80)
+        text = filtered.decode("ascii", errors="ignore").strip()
+
+        # Split into lines, remove empty and banner/prompt lines
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+        _LOGGER.debug("Parsed lines for cmd '%s': %s", cmd, lines)
+
+        # Remove echoed command and banner
+        cleaned = []
+        for line in lines:
+            # Skip command echo (exact match), banners, and prompts
+            if (
+                line == cmd
+                or line == cmd.rstrip("!")
+                or line.startswith(("********", "FW Version"))
+                or line == ">"
+                or "Welcome" in line
+            ):
+                _LOGGER.debug("Skipping line: %s", line)
+                continue
+            cleaned.append(line.strip(">"))
+
+        _LOGGER.debug("Cleaned response for cmd '%s': %s", cmd, cleaned)
+        return cleaned
 
     async def _send_command(self, cmd: str) -> str:
         cleaned = await self._send_command_multiple(cmd)
@@ -120,7 +132,87 @@ class OreiMatrixClient:
 
     async def get_type(self) -> str:
         """Return matrix model type."""
-        return await self._send_command("r type!")
+        type_str = await self._send_command("r type!")
+        # If we got the command back or something weird, return a default
+        if not type_str or "type" in type_str.lower() or len(type_str) < 3:
+            _LOGGER.warning("Invalid type response: '%s', using default", type_str)
+            return "HDMI Matrix"
+        return type_str
+
+    async def get_status(self) -> dict:
+        """Get full device status including input/output counts."""
+        lines = await self._send_command_multiple("r status!")
+
+        status: dict = {
+            "power": False,
+            "input_count": 0,
+            "output_count": 0,
+            "inputs": {},
+            "outputs": {},
+            "routing": {},
+        }
+
+        for line in lines:
+            line_lower = line.lower()
+
+            # Parse power
+            if "power on" in line_lower:
+                status["power"] = True
+
+            # Count inputs: "hdmi input 1: sync"
+            if "hdmi input" in line_lower and ":" in line:
+                parts = line_lower.split(":")
+                try:
+                    input_num = int(parts[0].split()[-1])
+                except (ValueError, IndexError):
+                    continue
+
+                input_count: int = status["input_count"]  # type: ignore[assignment]
+                status["input_count"] = max(input_count, input_num)
+                state = parts[1].strip()
+                is_connected = "disconnect" not in state
+                inputs_dict: dict = status["inputs"]  # type: ignore[assignment]
+                inputs_dict[input_num] = {"connected": is_connected}
+
+            # Count outputs: "hdmi output 1: disconnect" or "hdbt output 1"
+            is_output = "hdmi output" in line_lower or "hdbt output" in line_lower
+            if is_output and ":" in line:
+                parts = line_lower.split(":")
+                try:
+                    output_num = int(parts[0].split()[-1])
+                except (ValueError, IndexError):
+                    continue
+
+                output_count: int = status["output_count"]  # type: ignore[assignment]
+                status["output_count"] = max(output_count, output_num)
+                state = parts[1].strip()
+                is_connected = "disconnect" not in state
+                outputs_dict: dict = status["outputs"]  # type: ignore[assignment]
+                outputs_dict[output_num] = {"connected": is_connected}
+
+            # Parse routing: "input 1 -> output 1"
+            routing_check = (
+                "->" in line_lower and "input" in line_lower and "output" in line_lower
+            )
+            if routing_check:
+                parts = line_lower.replace("->", " ").split()
+                try:
+                    input_idx = parts.index("input") + 1
+                    output_idx = parts.index("output") + 1
+                except (ValueError, IndexError):
+                    continue
+
+                try:
+                    input_num = int(parts[input_idx])
+                    output_num = int(parts[output_idx])
+                except (ValueError, IndexError):
+                    continue
+
+                routing_dict: dict = status["routing"]  # type: ignore[assignment]
+                routing_dict[output_num] = input_num
+
+        _LOGGER.debug("Parsed status: %s", status)
+        return status
 
     async def get_power(self) -> bool:
         """Return True if matrix power is ON."""
@@ -229,8 +321,17 @@ class OreiMatrixClient:
         await self._send_command(f"s cec in {input_id} {command}!")
 
     async def set_cec_out(self, output_id: int, command: str):
-        """Send a CEC command to the output."""
+        """Send a CEC command to both HDMI and HDBaseT outputs."""
+        # Send to HDMI output
         await self._send_command(f"s cec hdmi out {output_id} {command}!")
+        # Send to HDBaseT output
+        await self._send_command(f"s cec hdbt out {output_id} {command}!")
+
+    async def set_output_active(self, output_id: int):
+        """Set the output to active source (tells TV to switch to this input)."""
+        # Send active command to both HDMI and HDBaseT
+        await self._send_command(f"s cec hdmi out {output_id} active!")
+        await self._send_command(f"s cec hdbt out {output_id} active!")
 
     async def set_output_source(self, input_id: int, output_id: int):
         """Assign an input to an output."""
