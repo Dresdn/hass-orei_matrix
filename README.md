@@ -2,7 +2,7 @@
 
 Control your **Orei HDMI Matrix** switch directly from **Home Assistant** via Telnet.
 
-Supports power control, input/output switching, live state updates, and manual refresh.  
+Supports power control, input/output switching, live state updates, and manual refresh.
 Compatible with multiple Orei models such as **UHD48-EX230-K**, etc.
 
 ---
@@ -11,10 +11,12 @@ Compatible with multiple Orei models such as **UHD48-EX230-K**, etc.
 
 - 🧠 **Automatic model detection** (`r type!`)
 - 🔌 **Global power control** (on/off)
-- 🎛 **Per-zone source selection** as media players
+- 🎛 **Per-output source selection** as media players
+- ⚡ **Comprehensive services** for power, routing, and CEC control
 - 🔄 **Manual refresh service** (`orei_matrix.refresh`)
 - 🧩 **Dynamic device grouping** (all entities under one device)
 - 🪄 **Config Flow setup** (no YAML required)
+- 🔍 **Auto-discovery** of inputs and outputs
 - 🧰 **Support for 4x4, 8x8, and other Orei matrix models**
 
 ---
@@ -68,10 +70,13 @@ That’s it — entities will be created automatically.
 
 ## 🧩 Entities
 
-| Entity                     | Description                                          |
-| -------------------------- | ---------------------------------------------------- |
-| `switch.orei_matrix_power` | Controls main matrix power                           |
-| `media_player.<zone>`      | Represents each output zone (allows input selection) |
+| Entity Type                | Count | Description                                          |
+| -------------------------- | ----- | ---------------------------------------------------- |
+| `switch.orei_matrix_power` | 1     | Controls main matrix power                           |
+| `switch.<input_name>`      | 8     | CEC control for each input device                    |
+| `media_player.<output>`    | 8     | Represents each output (allows source selection)     |
+
+**Total: 17 entities** for an 8x8 matrix (vs 33 with old button-based approach)
 
 Each media player exposes:
 
@@ -79,16 +84,57 @@ Each media player exposes:
 - **Source selection list** (using configured names)
 - **Availability** (grayed out when matrix power is off)
 
+Each input switch shows:
+- **Routed outputs** (which outputs display this input)
+- **CEC control** (power on/off source devices)
+
 ---
 
 ## 🧰 Services
 
-### `orei_matrix.refresh`
+### Power Control
 
-Manually refreshes all matrix states immediately — power, model, and routing.
+- `orei_matrix.power_on_output` - Power on a TV/display and set as active source
+- `orei_matrix.power_off_output` - Power off a TV/display
+- `orei_matrix.set_output_active` - Tell TV to switch to matrix input
+- `orei_matrix.power_on_input` - Power on a source device (Apple TV, Xbox, etc)
+- `orei_matrix.power_off_input` - Power off a source device
+- `orei_matrix.power_on_all_outputs` - Power on all displays
+- `orei_matrix.power_off_all_outputs` - Power off all displays
 
-#### Example usage (Developer Tools → Services)
+### Routing Control
+
+- `orei_matrix.route_input_to_output` - Route specific input to specific output
+- `orei_matrix.route_input_to_outputs` - Route input to multiple outputs
+
+### System
+
+- `orei_matrix.refresh` - Manually refresh matrix state
+
+### Example: Movie Night Automation
 
 ```yaml
-service: orei_matrix.refresh
+automation:
+  - alias: "Movie Night"
+    trigger:
+      - platform: time
+        at: "20:00:00"
+    action:
+      # Power on living room TV
+      - service: orei_matrix.power_on_output
+        data:
+          output: 1
+
+      # Wait for TV to boot
+      - delay:
+          seconds: 5
+
+      # Switch to Apple TV
+      - service: media_player.select_source
+        target:
+          entity_id: media_player.av_matrix_living_room
+        data:
+          source: "Apple TV"
 ```
+
+See [SERVICE_EXAMPLES.md](SERVICE_EXAMPLES.md) for more automation examples.
