@@ -24,7 +24,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         try:
             power = await client.get_power()
             outputs = await client.get_output_sources()
-            return {"power": power, "type": type_str, "outputs": outputs}
+            input_links = await client.get_in_links()
+            return {
+                "power": power,
+                "type": type_str,
+                "outputs": outputs,
+                "input_links": input_links,
+            }
         except Exception as err:
             _LOGGER.error("Update failed: %s", err)
             raise UpdateFailed(err) from err

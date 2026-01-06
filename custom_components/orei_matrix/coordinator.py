@@ -272,24 +272,49 @@ class OreiMatrixClient:
         return "disconnect" not in res.lower()
 
     async def get_in_links(self):
-        """Get the input state."""
-        results = await self._send_command_multiple("r link in 0!")
-        response = {}
+        """Get the input link states.
 
-        for res in results:
-            res = res.lower().replace(":", " ")
-            parts = res.split()
+        Returns dict mapping input_id to state string:
+        - "sync" = Active video signal (device on and sending video)
+        - "connect" = Cable connected, no active signal (device off/standby)
+        - "disconnect" = Nothing connected
+        """
+        command_results = await self._send_command_multiple("r link in 0!")
+        input_states = {}
+
+        for response_line in command_results:
+            # Parse format: "hdmi input 1: sync"
+            if ":" not in response_line:
+                continue
+
+            line_parts = response_line.lower().split(":")
+            if len(line_parts) < 2:
+                continue
+
+            # Extract input number from first part
+            prefix_tokens = line_parts[0].split()
             input_id = None
 
-            try:
-                for i, token in enumerate(parts):
-                    if token in ("input", "in") and i + 1 < len(parts):
-                        input_id = int(parts[i + 1])
-                response[input_id] = "disconnect" not in res
-            except ValueError:
-                _LOGGER.warning("Could not parse integers from response: %s", res)
-                return None
-        return response
+            for token_index, token_value in enumerate(prefix_tokens):
+                is_input_token = token_value in ("input", "in")
+                has_next_token = token_index + 1 < len(prefix_tokens)
+
+                if is_input_token and has_next_token:
+                    try:
+                        input_id = int(prefix_tokens[token_index + 1])
+                        break
+                    except (ValueError, IndexError):
+                        _LOGGER.warning(
+                            "Could not parse input number from: %s", response_line
+                        )
+                        continue
+
+            if input_id:
+                # Extract state from second part (after colon)
+                link_state = line_parts[1].strip()
+                input_states[input_id] = link_state
+
+        return input_states
 
     async def get_out_link(self, output_id: int):
         """Get the output state."""
