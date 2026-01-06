@@ -96,15 +96,27 @@ class OreiMatrixInputSwitch(CoordinatorEntity, SwitchEntity):
 
     @property
     def is_on(self):
-        """Return True if the input has an active HDMI connection."""
-        # This would come from get_in_links() data
-        # For now, assume available means connected
-        return self.available
+        """Return True if the input has an active HDMI signal (sync state).
+
+        States from device:
+        - "sync" = Active video signal → ON
+        - "connect" = Cable connected, no signal → OFF
+        - "disconnect" = Nothing connected → OFF
+        """
+        if not self.available:
+            return False
+
+        input_links = self.coordinator.data.get("input_links", {})
+        link_state = input_links.get(self._input_id, "disconnect")
+
+        # Only show "on" when actively sending video
+        return link_state == "sync"
 
     @property
     def extra_state_attributes(self):
         """Return additional state attributes."""
         outputs = self.coordinator.data.get("outputs", {})
+        input_links = self.coordinator.data.get("input_links", {})
 
         # Find which outputs this input is routed to
         routed_outputs = [
@@ -113,8 +125,11 @@ class OreiMatrixInputSwitch(CoordinatorEntity, SwitchEntity):
             if input_id == self._input_id
         ]
 
+        link_state = input_links.get(self._input_id, "disconnect")
+
         return {
             "input_id": self._input_id,
+            "link_state": link_state,
             "routed_to_outputs": routed_outputs if routed_outputs else "None",
             "output_count": len(routed_outputs),
         }
