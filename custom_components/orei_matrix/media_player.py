@@ -2,7 +2,7 @@ import logging
 
 from homeassistant.components.media_player import MediaPlayerEntity
 from homeassistant.components.media_player.const import MediaPlayerEntityFeature
-from homeassistant.const import STATE_OFF, STATE_ON
+from homeassistant.const import STATE_IDLE, STATE_OFF, STATE_PLAYING, STATE_STANDBY
 from homeassistant.core import callback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -61,8 +61,35 @@ class OreiMatrixOutputMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
 
     @property
     def state(self):
-        """Entity state is 'on' when matrix powered."""
-        return STATE_ON if self.available else STATE_OFF
+        """Return state based on matrix power and input link status.
+
+        States:
+        - OFF: Matrix powered off
+        - STANDBY: No input routed, or input device off/disconnected
+        - IDLE: Input device connected but not sending active signal
+        - PLAYING: Input device sending active video signal
+        """
+        if not self.coordinator.data.get("power"):
+            return STATE_OFF
+
+        # Get current input routed to this output
+        outputs = self.coordinator.data.get("outputs", {})
+        current_input = outputs.get(self._output_id)
+
+        if not current_input:
+            return STATE_STANDBY  # No input routed
+
+        # Check input link state
+        input_links = self.coordinator.data.get("input_links", {})
+        link_state = input_links.get(current_input, "disconnect")
+
+        if link_state == "sync":
+            return STATE_PLAYING  # Active video signal
+
+        if link_state == "connect":
+            return STATE_IDLE  # Connected but no active signal
+
+        return STATE_STANDBY  # Device disconnected
 
     @property
     def device_info(self):
