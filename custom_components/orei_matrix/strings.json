@@ -3,14 +3,61 @@
     "step": {
       "user": {
         "title": "Orei HDMI Matrix Setup",
-        "description": "Configure your Orei HDMI Matrix connection.",
+        "description": "Enter the IP address and port of your Orei HDMI Matrix.",
         "data": {
           "host": "Matrix IP Address",
-          "port": "Telnet Port (default 23)",
-          "sources": "Source names (inputs)",
-          "zones": "Zone names (outputs)"
+          "port": "Telnet Port (default 23)"
+        }
+      },
+      "naming": {
+        "title": "Name Inputs and Outputs",
+        "description": "Detected {device_type} with {input_count} inputs and {output_count} outputs. Customize the names below or use the defaults.",
+        "data": {
+          "input_1": "Input 1 Name",
+          "input_2": "Input 2 Name",
+          "input_3": "Input 3 Name",
+          "input_4": "Input 4 Name",
+          "input_5": "Input 5 Name",
+          "input_6": "Input 6 Name",
+          "input_7": "Input 7 Name",
+          "input_8": "Input 8 Name",
+          "output_1": "Output 1 Name",
+          "output_2": "Output 2 Name",
+          "output_3": "Output 3 Name",
+          "output_4": "Output 4 Name",
+          "output_5": "Output 5 Name",
+          "output_6": "Output 6 Name",
+          "output_7": "Output 7 Name",
+          "output_8": "Output 8 Name"
         }
       }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the device: {error_detail}",
+      "invalid_response": "Device responded but with invalid data: {error_detail}",
+      "unknown": "Unexpected error: {error_detail}"
+    },
+    "abort": {
+      "already_configured": "Device is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure Orei HDMI Matrix",
+        "description": "Update your Orei HDMI Matrix settings.",
+        "data": {
+          "host": "Matrix IP Address",
+          "port": "Telnet Port",
+          "inputs": "Input names",
+          "outputs": "Output names"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the device: {error_detail}",
+      "invalid_response": "Device responded but with invalid data: {error_detail}",
+      "unknown": "Unexpected error: {error_detail}"
     }
   }
 }
