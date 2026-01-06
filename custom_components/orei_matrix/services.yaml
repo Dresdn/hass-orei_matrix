@@ -1,3 +1,133 @@
 refresh:
   name: Refresh Matrix State
   description: Manually refresh the Orei HDMI Matrix state from the device.
+
+power_on_output:
+  name: Power On Output
+  description: Send CEC power on command to an output (TV/display) and set it as the active source.
+  fields:
+    output:
+      name: Output
+      description: Output number (1-8)
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 8
+          mode: box
+
+power_off_output:
+  name: Power Off Output
+  description: Send CEC power off command to an output (TV/display).
+  fields:
+    output:
+      name: Output
+      description: Output number (1-8)
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 8
+          mode: box
+
+set_output_active:
+  name: Set Output as Active Source
+  description: Tell the TV/display to switch to the matrix HDMI input.
+  fields:
+    output:
+      name: Output
+      description: Output number (1-8)
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 8
+          mode: box
+
+power_on_input:
+  name: Power On Input
+  description: Send CEC power on command to an input device (Apple TV, Xbox, etc).
+  fields:
+    input:
+      name: Input
+      description: Input number (1-8)
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 8
+          mode: box
+
+power_off_input:
+  name: Power Off Input
+  description: Send CEC power off command to an input device (Apple TV, Xbox, etc).
+  fields:
+    input:
+      name: Input
+      description: Input number (1-8)
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 8
+          mode: box
+
+route_input_to_output:
+  name: Route Input to Output
+  description: Route a specific input to a specific output.
+  fields:
+    input:
+      name: Input
+      description: Input number (1-8)
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 8
+          mode: box
+    output:
+      name: Output
+      description: Output number (1-8)
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 8
+          mode: box
+
+route_input_to_outputs:
+  name: Route Input to Multiple Outputs
+  description: Route a single input to multiple outputs at once.
+  fields:
+    input:
+      name: Input
+      description: Input number (1-8)
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 8
+          mode: box
+    outputs:
+      name: Outputs
+      description: List of output numbers (1-8)
+      required: true
+      example: [1, 2, 3]
+      selector:
+        object:
+
+power_on_all_outputs:
+  name: Power On All Outputs
+  description: Send CEC power on command to all outputs and set them as active sources.
+
+power_off_all_outputs:
+  name: Power Off All Outputs
+  description: Send CEC power off command to all outputs.
