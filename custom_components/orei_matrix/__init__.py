@@ -1,8 +1,9 @@
-from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from datetime import timedelta
 import logging
+from datetime import timedelta
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import DOMAIN
 from .coordinator import OreiMatrixClient
@@ -38,7 +39,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "client": client,
         "coordinator": coordinator,
-        "config": entry.data,
+        "config": entry.options if entry.options else entry.data,
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -58,6 +59,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         schema=None,
     )
 
+    async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry):
+        """Handle an options update."""
+        await hass.config_entries.async_reload(entry.entry_id)
+
+    # Register update listener for options changes
+    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
+
     return True
 
 
@@ -65,4 +73,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
         hass.data[DOMAIN].pop(entry.entry_id)
+    return unloaded
     return unloaded
