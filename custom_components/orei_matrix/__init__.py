@@ -12,7 +12,7 @@ from .coordinator import OreiMatrixClient
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = ["media_player", "switch", "button"]
+PLATFORMS = ["binary_sensor", "media_player", "sensor", "switch", "button"]
 _LOGGER.warning("OREI MATRIX DEV BUILD LOADED")
 
 
@@ -30,6 +30,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 "type": type_str,
                 "outputs": outputs,
                 "input_links": input_links,
+                "connected": client.is_connected,
+                "firmware_version": client.firmware_version,
             }
         except Exception as err:
             _LOGGER.error("Update failed: %s", err)
