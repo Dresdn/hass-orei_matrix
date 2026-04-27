@@ -131,3 +131,130 @@ power_on_all_outputs:
 power_off_all_outputs:
   name: Power Off All Outputs
   description: Send CEC power off command to all outputs.
+
+cec_volume_up:
+  name: CEC Volume Up
+  description: Send CEC volume-up command to an HDBaseT output.
+  fields:
+    output:
+      name: Output
+      description: Output number (1-8)
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 8
+          mode: box
+
+cec_volume_down:
+  name: CEC Volume Down
+  description: Send CEC volume-down command to an HDBaseT output.
+  fields:
+    output:
+      name: Output
+      description: Output number (1-8)
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 8
+          mode: box
+
+cec_mute:
+  name: CEC Mute
+  description: Send CEC mute command to an HDBaseT output.
+  fields:
+    output:
+      name: Output
+      description: Output number (1-8)
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 8
+          mode: box
+
+cec_power_on:
+  name: CEC Power On (Output)
+  description: Send CEC power-on to both HDMI and HDBaseT output.
+  fields:
+    output:
+      name: Output
+      description: Output number (1-8)
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 8
+          mode: box
+
+cec_power_off:
+  name: CEC Power Off (Output)
+  description: Send CEC power-off to both HDMI and HDBaseT output.
+  fields:
+    output:
+      name: Output
+      description: Output number (1-8)
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 8
+          mode: box
+
+cec_set_active_source:
+  name: CEC Set Active Source
+  description: Tell the TV/display connected to an output to switch to the matrix input.
+  fields:
+    output:
+      name: Output
+      description: Output number (1-8)
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 8
+          mode: box
+
+route_input_to_all_outputs:
+  name: Route Input to All Outputs
+  description: Broadcast one input to every output simultaneously (whole-home mode).
+  fields:
+    input:
+      name: Input
+      description: Input number (1-8)
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 8
+          mode: box
+
+set_edid:
+  name: Set EDID Profile
+  description: Set the EDID profile for a given input (e.g. 4k60, 1080p, copy1).
+  fields:
+    input:
+      name: Input
+      description: Input number (1-8)
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 8
+          mode: box
+    edid_profile:
+      name: EDID Profile
+      description: EDID profile name (e.g. 4k60, 1080p, copy1)
+      required: true
+      example: "4k60"
+      selector:
+        text:
