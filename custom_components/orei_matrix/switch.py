@@ -1,6 +1,7 @@
 import logging
 
 from homeassistant.components.switch import SwitchEntity
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_INPUTS, CONF_OUTPUTS, CONF_SOURCES, CONF_ZONES, DOMAIN

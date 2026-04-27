@@ -1,6 +1,7 @@
 import logging
 
 from homeassistant.components.button import ButtonEntity
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_OUTPUTS, CONF_ZONES, DOMAIN
@@ -67,17 +68,17 @@ class OreiMatrixOutputPowerButton(CoordinatorEntity, ButtonEntity):
         return bool(self.coordinator.data.get("power"))
 
     @property
-    def device_info(self):
+    def device_info(self) -> DeviceInfo:
         """Device info for grouping under the matrix."""
         model = self.coordinator.data.get("type", "Unknown")
         name = f"Orei {model}" if model != "Unknown" else "Orei HDMI Matrix"
-        return {
-            "identifiers": {(DOMAIN, self._entry_id)},
-            "name": name,
-            "manufacturer": "Orei",
-            "model": model,
-            "configuration_url": f"http://{self._host}",
-        }
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._entry_id)},
+            name=name,
+            manufacturer="OREI",
+            model=model,
+            configuration_url=f"http://{self._host}",
+        )
 
     async def async_press(self) -> None:
         """Handle the button press."""

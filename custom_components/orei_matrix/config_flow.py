@@ -86,6 +86,51 @@ class OreiMatrixConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._port: int | None = None
         self._device_info: dict | None = None
 
+    async def async_step_reconfigure(self, user_input=None):
+        """Handle reconfiguration — update host/port without removing the entry."""
+        errors = {}
+        description_placeholders = {}
+
+        if user_input is not None:
+            try:
+                info = await validate_input(self.hass, user_input)
+            except CannotConnect as err:
+                errors["base"] = "cannot_connect"
+                description_placeholders["error_detail"] = str(err)
+            except InvalidDeviceResponse as err:
+                errors["base"] = "invalid_response"
+                description_placeholders["error_detail"] = str(err)
+            except Exception as err:
+                _LOGGER.exception("Unexpected exception during reconfigure")
+                errors["base"] = "unknown"
+                description_placeholders["error_detail"] = str(err)
+            else:
+                self.hass.config_entries.async_update_entry(
+                    self._get_reconfigure_entry(),
+                    title=info["title"],
+                    data={
+                        **self._get_reconfigure_entry().data,
+                        CONF_HOST: user_input[CONF_HOST],
+                        CONF_PORT: user_input.get(CONF_PORT, 23),
+                    },
+                )
+                return self.async_abort(reason="reconfigure_successful")
+
+        entry = self._get_reconfigure_entry()
+        data_schema = vol.Schema(
+            {
+                vol.Required(CONF_HOST, default=entry.data.get(CONF_HOST, "")): str,
+                vol.Optional(CONF_PORT, default=entry.data.get(CONF_PORT, 23)): int,
+            }
+        )
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=data_schema,
+            errors=errors,
+            description_placeholders=description_placeholders,
+        )
+
     @staticmethod
     def async_get_options_flow(config_entry):
         """Get the options flow for this handler."""

@@ -4,6 +4,7 @@ from homeassistant.components.media_player import MediaPlayerEntity
 from homeassistant.components.media_player.const import MediaPlayerEntityFeature
 from homeassistant.const import STATE_IDLE, STATE_OFF, STATE_PLAYING, STATE_STANDBY
 from homeassistant.core import callback
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_INPUTS, CONF_OUTPUTS, CONF_SOURCES, CONF_ZONES, DOMAIN
@@ -55,9 +56,11 @@ class OreiMatrixOutputMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
         self._attr_has_entity_name = True
 
     @property
-    def available(self):
-        """Entity availability based on matrix power."""
-        return bool(self.coordinator.data.get("power"))
+    def available(self) -> bool:
+        """Available only when connected and matrix is powered on."""
+        if not self.coordinator.last_update_success:
+            return False
+        return bool(self.coordinator.data and self.coordinator.data.get("power"))
 
     @property
     def state(self):
@@ -92,17 +95,17 @@ class OreiMatrixOutputMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
         return STATE_STANDBY  # Device disconnected
 
     @property
-    def device_info(self):
+    def device_info(self) -> DeviceInfo:
         """Device info for grouping and model-based naming."""
         model = self.coordinator.data.get("type", "Unknown")
         name = f"Orei {model}" if model != "Unknown" else "Orei HDMI Matrix"
-        return {
-            "identifiers": {(DOMAIN, self._entry_id)},
-            "name": name,
-            "manufacturer": "Orei",
-            "model": model,
-            "configuration_url": f"http://{self._host}",
-        }
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._entry_id)},
+            name=name,
+            manufacturer="OREI",
+            model=model,
+            configuration_url=f"http://{self._host}",
+        )
 
     @callback
     def _handle_coordinator_update(self):
