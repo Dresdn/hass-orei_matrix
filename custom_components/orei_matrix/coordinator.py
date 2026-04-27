@@ -5,29 +5,77 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class OreiMatrixClient:
-    """Async client for controlling Orei HDMI Matrix via Telnet."""
+    """Async client for controlling Orei HDMI Matrix via raw TCP."""
 
-    def __init__(self, host, port=23):
+    def __init__(self, host: str, port: int = 23) -> None:
         self._host = host
         self._port = port
-        self._reader = None
-        self._writer = None
+        self._reader: asyncio.StreamReader | None = None
+        self._writer: asyncio.StreamWriter | None = None
         self._lock = asyncio.Lock()
+        self._connected: bool = False
+        self._reconnect_delay: float = 1.0
+        self._firmware_version: str | None = None
 
     # -----------------------
     # Connection management
     # -----------------------
 
-    async def connect(self):
-        """Establish a TCP connection to the matrix."""
+    @property
+    def is_connected(self) -> bool:
+        """Return True if the TCP connection is active."""
+        return (
+            self._connected
+            and self._writer is not None
+            and not self._writer.is_closing()
+        )
+
+    @property
+    def firmware_version(self) -> str | None:
+        """Return the firmware version parsed from the connection banner."""
+        return self._firmware_version
+
+    async def connect(self) -> None:
+        """Establish a TCP connection to the matrix and parse the welcome banner."""
         self._reader, self._writer = await asyncio.wait_for(
             asyncio.open_connection(self._host, self._port),
             timeout=5.0,
         )
+        self._connected = True
+        self._reconnect_delay = 1.0  # Reset backoff on successful connect
         _LOGGER.debug("Connected to Orei Matrix at %s:%s", self._host, self._port)
 
-    async def disconnect(self):
+        # Read and parse the welcome banner for firmware version
+        await self._read_banner()
+
+    async def _read_banner(self) -> None:
+        """Read the initial welcome banner and extract firmware version."""
+        if not self._reader:
+            return
+        banner_bytes = bytearray()
+        try:
+            while True:
+                data = await asyncio.wait_for(self._reader.read(1024), timeout=1.0)
+                if not data:
+                    break
+                banner_bytes.extend(data)
+        except TimeoutError:
+            pass
+
+        # Parse firmware version from banner lines like "FW Version: 1.2.3"
+        text = banner_bytes.decode("ascii", errors="ignore")
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.lower().startswith("fw version"):
+                self._firmware_version = stripped
+                _LOGGER.debug(
+                    "Firmware version from banner: %s", self._firmware_version
+                )
+                break
+
+    async def disconnect(self) -> None:
         """Close the connection."""
+        self._connected = False
         if not self._writer:
             return
 
@@ -41,10 +89,27 @@ class OreiMatrixClient:
             self._writer = None
             _LOGGER.debug("Disconnected from Orei Matrix")
 
-    async def _ensure_connected(self):
-        """Reconnect if needed."""
-        if not self._writer or self._writer.is_closing():
+    async def _ensure_connected(self) -> None:
+        """Reconnect with exponential backoff if connection is down."""
+        if self.is_connected:
+            return
+
+        await self.disconnect()  # Clean up any stale state
+
+        if self._reconnect_delay > 1.0:
+            _LOGGER.debug(
+                "Waiting %.1fs before reconnecting to %s...",
+                self._reconnect_delay,
+                self._host,
+            )
+            await asyncio.sleep(min(self._reconnect_delay, 5.0))
+
+        try:
             await self.connect()
+        except Exception:
+            self._reconnect_delay = min(self._reconnect_delay * 2, 60.0)
+            self._connected = False
+            raise
 
     # -----------------------
     # Core command handling
@@ -358,6 +423,45 @@ class OreiMatrixClient:
         await self._send_command(f"s cec hdmi out {output_id} active!")
         await self._send_command(f"s cec hdbt out {output_id} active!")
 
-    async def set_output_source(self, input_id: int, output_id: int):
+    async def set_output_source(self, input_id: int, output_id: int) -> None:
         """Assign an input to an output."""
         await self._send_command(f"s in {input_id} av out {output_id}!")
+
+    async def route_input_to_all_outputs(self, input_id: int) -> None:
+        """Route one input to all outputs simultaneously (broadcast mode)."""
+        await self._send_command(f"s in {input_id} av out 0!")
+
+    async def set_cec_out_volume_up(self, output_id: int) -> None:
+        """Send CEC volume-up command to an HDBaseT output."""
+        await self._send_command(f"s cec hdbt out {output_id} vol+!")
+
+    async def set_cec_out_volume_down(self, output_id: int) -> None:
+        """Send CEC volume-down command to an HDBaseT output."""
+        await self._send_command(f"s cec hdbt out {output_id} vol-!")
+
+    async def set_cec_out_mute(self, output_id: int) -> None:
+        """Send CEC mute command to an HDBaseT output."""
+        await self._send_command(f"s cec hdbt out {output_id} mute!")
+
+    async def set_cec_out_power_on(self, output_id: int) -> None:
+        """Send CEC power-on command to both HDMI and HDBaseT outputs."""
+        await self._send_command(f"s cec hdmi out {output_id} on!")
+        await self._send_command(f"s cec hdbt out {output_id} on!")
+
+    async def set_cec_out_power_off(self, output_id: int) -> None:
+        """Send CEC power-off command to both HDMI and HDBaseT outputs."""
+        await self._send_command(f"s cec hdmi out {output_id} off!")
+        await self._send_command(f"s cec hdbt out {output_id} off!")
+
+    async def set_cec_out_active_source(self, output_id: int) -> None:
+        """Send CEC active-source command to both HDMI and HDBaseT outputs."""
+        await self._send_command(f"s cec hdmi out {output_id} active!")
+        await self._send_command(f"s cec hdbt out {output_id} active!")
+
+    async def set_edid(self, input_id: int, edid_profile: str) -> None:
+        """Set the EDID profile for a given input.
+
+        edid_profile examples: '1080p', '4k30', '4k60', 'copy1', etc.
+        Command format: s edid in {x} {profile}!
+        """
+        await self._send_command(f"s edid in {input_id} {edid_profile}!")
