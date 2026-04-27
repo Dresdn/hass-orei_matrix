@@ -3,7 +3,7 @@ import logging
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_INPUTS, CONF_SOURCES, DOMAIN
+from .const import CONF_INPUTS, CONF_OUTPUTS, CONF_SOURCES, CONF_ZONES, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -14,16 +14,25 @@ async def async_setup_entry(hass, entry, async_add_entities):
     coordinator = data["coordinator"]
     config = data["config"]
 
-    # Create power switch and input switches
+    # Matrix-level power switch
     entities: list[SwitchEntity] = [
         OreiMatrixPowerSwitch(client, coordinator, config, entry.entry_id)
     ]
 
-    # Create input switches
+    # CEC input switches (power on/off source devices)
     inputs = config.get(CONF_INPUTS, config.get(CONF_SOURCES, []))
     for idx, input_name in enumerate(inputs, start=1):
         entities.append(
             OreiMatrixInputSwitch(client, coordinator, input_name, idx, entry.entry_id)
+        )
+
+    # CEC per-output power switches (power on/off individual TVs/displays)
+    outputs = config.get(CONF_OUTPUTS, config.get(CONF_ZONES, []))
+    for idx, output_name in enumerate(outputs, start=1):
+        entities.append(
+            OreiMatrixOutputPowerSwitch(
+                client, coordinator, output_name, idx, entry.entry_id
+            )
         )
 
     async_add_entities(entities)
@@ -46,17 +55,17 @@ class OreiMatrixPowerSwitch(CoordinatorEntity, SwitchEntity):
         self._attr_has_entity_name = True  # Use device name + entity name
 
     @property
-    def device_info(self):
+    def device_info(self) -> DeviceInfo:
         """Device info for grouping and model-based naming."""
         model = self.coordinator.data.get("type", "Unknown")
         name = f"Orei {model}" if model != "Unknown" else "Orei HDMI Matrix"
-        return {
-            "identifiers": {(DOMAIN, self._entry_id)},
-            "name": name,
-            "manufacturer": "Orei",
-            "model": model,
-            "configuration_url": f"http://{self._config.get('host')}",
-        }
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._entry_id)},
+            name=name,
+            manufacturer="OREI",
+            model=model,
+            configuration_url=f"http://{self._config.get('host')}",
+        )
 
     @property
     def is_on(self):
@@ -135,17 +144,17 @@ class OreiMatrixInputSwitch(CoordinatorEntity, SwitchEntity):
         }
 
     @property
-    def device_info(self):
+    def device_info(self) -> DeviceInfo:
         """Device info for grouping under the matrix."""
         model = self.coordinator.data.get("type", "Unknown")
         name = f"Orei {model}" if model != "Unknown" else "Orei HDMI Matrix"
-        return {
-            "identifiers": {(DOMAIN, self._entry_id)},
-            "name": name,
-            "manufacturer": "Orei",
-            "model": model,
-            "configuration_url": f"http://{self._host}",
-        }
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._entry_id)},
+            name=name,
+            manufacturer="OREI",
+            model=model,
+            configuration_url=f"http://{self._host}",
+        )
 
     async def async_turn_on(self, **kwargs):
         """Send CEC power on command to this input."""
@@ -166,3 +175,58 @@ class OreiMatrixInputSwitch(CoordinatorEntity, SwitchEntity):
         await self._client.set_cec_in(self._input_id, "off")
         _LOGGER.info("Sent CEC power off to %s (input %d)", self.name, self._input_id)
         await self.coordinator.async_request_refresh()
+
+
+class OreiMatrixOutputPowerSwitch(CoordinatorEntity, SwitchEntity):
+    """Switch for CEC power control of a single output (TV/display)."""
+
+    def __init__(
+        self, client, coordinator, output_name: str, output_id: int, entry_id: str
+    ) -> None:
+        """Initialize the output power switch."""
+        super().__init__(coordinator)
+        self._client = client
+        self._output_id = output_id
+        self._entry_id = entry_id
+        self._host = coordinator.config_entry.data.get("host")
+
+        self._attr_unique_id = f"{entry_id}_output_{output_id}_cec_power"
+        self._attr_name = f"{output_name} TV Power"
+        self._attr_has_entity_name = True
+        self._attr_icon = "mdi:television"
+
+    @property
+    def available(self) -> bool:
+        """Available only when matrix is reachable and powered on."""
+        if not self.coordinator.last_update_success:
+            return False
+        return bool(self.coordinator.data and self.coordinator.data.get("power"))
+
+    @property
+    def is_on(self) -> bool | None:
+        """State is unknown — CEC doesn't report TV power state back."""
+        return None
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        data = self.coordinator.data or {}
+        model = data.get("type", "Unknown")
+        name = f"Orei {model}" if model != "Unknown" else "Orei HDMI Matrix"
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._entry_id)},
+            name=name,
+            manufacturer="OREI",
+            model=model,
+            configuration_url=f"http://{self._host}",
+        )
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Send CEC power-on to this output's display."""
+        await self._client.set_cec_out_power_on(self._output_id)
+        await self._client.set_cec_out_active_source(self._output_id)
+        _LOGGER.info("Sent CEC power-on + active-source to output %d", self._output_id)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Send CEC power-off to this output's display."""
+        await self._client.set_cec_out_power_off(self._output_id)
+        _LOGGER.info("Sent CEC power-off to output %d", self._output_id)
